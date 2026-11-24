@@ -1,4 +1,6 @@
+import os
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import engine, Base
 from app import models
@@ -20,3 +22,11 @@ def health_check():
     response_data["app"] = settings.app_name
     response_data["env"] = settings.app_env
     return response_data
+
+
+current_file_dir = os.path.dirname(os.path.abspath(__file__))
+project_root_dir = os.path.dirname(current_file_dir)
+frontend_dir = os.path.join(project_root_dir, "frontend")
+
+if os.path.isdir(frontend_dir):
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")

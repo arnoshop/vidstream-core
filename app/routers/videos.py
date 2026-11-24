@@ -1,9 +1,10 @@
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Video
 from app.schemas import VideoCreate, VideoOut
+from app.storage import save_uploaded_video
 from app.utils import generate_slug
 
 router = APIRouter(
@@ -38,6 +39,55 @@ def create_video(payload: VideoCreate, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save video in database"
+        )
+
+    return new_video
+
+
+@router.post("/upload", response_model=VideoOut, status_code=status.HTTP_201_CREATED)
+def upload_video(
+    title: str = Form(...),
+    description: Optional[str] = Form(None),
+    duration_seconds: int = Form(0),
+    video_file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    cleaned_title = title.strip()
+    if len(cleaned_title) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="title must be at least 3 characters"
+        )
+
+    safe_duration = duration_seconds
+    if safe_duration < 0:
+        safe_duration = 0
+
+    saved_stream_url = save_uploaded_video(video_file, "videos")
+
+    slug_value = generate_slug(cleaned_title)
+    existing = db.query(Video).filter(Video.slug == slug_value).first()
+    if existing is not None:
+        slug_value = generate_slug(cleaned_title)
+
+    new_video = Video(
+        title=cleaned_title,
+        slug=slug_value,
+        description=description,
+        stream_url=saved_stream_url,
+        thumbnail_url=None,
+        duration_seconds=safe_duration
+    )
+
+    try:
+        db.add(new_video)
+        db.commit()
+        db.refresh(new_video)
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save uploaded video in database"
         )
 
     return new_video

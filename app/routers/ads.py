@@ -1,9 +1,10 @@
 import random
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import PreRollAd
 from app.schemas import PreRollAdCreate, PreRollAdOut
+from app.utils import build_vast_xml
 
 router = APIRouter(
     prefix="/ads",
@@ -68,6 +69,45 @@ def serve_random_ad(db: Session = Depends(get_db)):
         )
 
     return selected_ad
+
+
+@router.get("/vast.xml")
+def get_vast_xml(db: Session = Depends(get_db)):
+    empty_vast = '<?xml version="1.0" encoding="UTF-8"?>\n<VAST version="3.0"></VAST>'
+
+    active_ads = (
+        db.query(PreRollAd)
+        .filter(PreRollAd.is_active == True)
+        .all()
+    )
+
+    if len(active_ads) == 0:
+        return Response(content=empty_vast, media_type="application/xml")
+
+    last_index = len(active_ads) - 1
+    chosen_index = random.randint(0, last_index)
+    selected_ad = active_ads[chosen_index]
+
+    if selected_ad.impressions_count is None:
+        selected_ad.impressions_count = 0
+
+    selected_ad.impressions_count = selected_ad.impressions_count + 1
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        return Response(content=empty_vast, media_type="application/xml")
+
+    xml_content = build_vast_xml(
+        ad_id=selected_ad.id,
+        campaign_name=selected_ad.campaign_name,
+        video_url=selected_ad.ad_video_url,
+        click_url=selected_ad.target_click_url,
+        skip_seconds=selected_ad.skip_after_seconds
+    )
+
+    return Response(content=xml_content, media_type="application/xml")
 
 
 @router.post("/{ad_id}/click", response_model=PreRollAdOut)

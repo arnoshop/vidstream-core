@@ -60,3 +60,38 @@ def list_videos(skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
     videos_list = query.offset(skip).limit(limit).all()
 
     return videos_list
+
+
+@router.get("/{slug}", response_model=VideoOut)
+def get_video_by_slug(slug: str, db: Session = Depends(get_db)):
+    cleaned_slug = slug.strip()
+
+    video_item = (
+        db.query(Video)
+        .filter(Video.slug == cleaned_slug)
+        .filter(Video.is_active == True)
+        .first()
+    )
+
+    if video_item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Video not found"
+        )
+
+    if video_item.views_count is None:
+        video_item.views_count = 0
+
+    video_item.views_count = video_item.views_count + 1
+
+    try:
+        db.commit()
+        db.refresh(video_item)
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update video view count"
+        )
+
+    return video_item

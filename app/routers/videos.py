@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Video
 from app.schemas import VideoCreate, VideoOut
+from app.security import verify_admin_key
 from app.storage import save_uploaded_video
 from app.utils import generate_slug
 
@@ -13,7 +14,12 @@ router = APIRouter(
 )
 
 
-@router.post("/", response_model=VideoOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=VideoOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_admin_key)]
+)
 def create_video(payload: VideoCreate, db: Session = Depends(get_db)):
     slug_value = generate_slug(payload.title)
 
@@ -44,7 +50,12 @@ def create_video(payload: VideoCreate, db: Session = Depends(get_db)):
     return new_video
 
 
-@router.post("/upload", response_model=VideoOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload",
+    response_model=VideoOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_admin_key)]
+)
 def upload_video(
     title: str = Form(...),
     description: Optional[str] = Form(None),
@@ -145,3 +156,33 @@ def get_video_by_slug(slug: str, db: Session = Depends(get_db)):
         )
 
     return video_item
+
+
+@router.delete("/{video_id}", dependencies=[Depends(verify_admin_key)])
+def delete_video(video_id: int, db: Session = Depends(get_db)):
+    video_item = (
+        db.query(Video)
+        .filter(Video.id == video_id)
+        .first()
+    )
+
+    if video_item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Video not found"
+        )
+
+    try:
+        db.delete(video_item)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete video from database"
+        )
+
+    result = {}
+    result["status"] = "deleted"
+    result["video_id"] = video_id
+    return result

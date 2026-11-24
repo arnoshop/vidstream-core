@@ -1,0 +1,76 @@
+import os
+import secrets
+from fastapi import HTTPException, UploadFile, status
+
+ALLOWED_VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".mkv"]
+
+
+def get_media_root():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    media_dir = os.path.join(project_root, "media")
+
+    if not os.path.exists(media_dir):
+        os.makedirs(media_dir, exist_ok=True)
+
+    return media_dir
+
+
+def extract_safe_extension(original_filename):
+    if original_filename is None or original_filename.strip() == "":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file must have a valid filename"
+        )
+
+    parts = os.path.splitext(original_filename)
+    ext = parts[1].lower().strip()
+
+    if ext not in ALLOWED_VIDEO_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported video format. Allowed: mp4, webm, mov, mkv"
+        )
+
+    return ext
+
+
+def save_uploaded_video(upload_file: UploadFile, subfolder_name: str):
+    clean_folder = subfolder_name.strip().lower()
+    if clean_folder == "" or not clean_folder.isalnum():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid storage subfolder name"
+        )
+
+    file_ext = extract_safe_extension(upload_file.filename)
+    media_root = get_media_root()
+    target_folder = os.path.join(media_root, clean_folder)
+
+    if not os.path.exists(target_folder):
+        os.makedirs(target_folder, exist_ok=True)
+
+    random_name = secrets.token_hex(8) + file_ext
+    full_file_path = os.path.join(target_folder, random_name)
+
+    chunk_size = 1024 * 1024
+
+    try:
+        with open(full_file_path, "wb") as output_file:
+            while True:
+                data_chunk = upload_file.file.read(chunk_size)
+                if not data_chunk:
+                    break
+                output_file.write(data_chunk)
+    except Exception:
+        if os.path.exists(full_file_path):
+            os.remove(full_file_path)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save uploaded video file"
+        )
+    finally:
+        upload_file.file.close()
+
+    relative_url = "/media/" + clean_folder + "/" + random_name
+    return relative_url

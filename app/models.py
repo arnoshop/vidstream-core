@@ -21,3 +21,17 @@ class Video(Base):
     views_count = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=get_utc_now)
+
+
+class PreRollAd(Base):
+    __tablename__ = "preroll_ads"
+
+    id = Column(Integer, primary_key=True, index=True)
+    campaign_name = Column(String(200), nullable=False)
+    ad_video_url = Column(String(500), nullable=False)
+    target_click_url = Column(String(500), nullable=False)
+    skip_after_seconds = Column(Integer, default=5)
+    impressions_count = Column(Integer, default=0)
+    clicks_count = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=get_utc_now)

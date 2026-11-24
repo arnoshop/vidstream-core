@@ -68,3 +68,35 @@ def serve_random_ad(db: Session = Depends(get_db)):
         )
 
     return selected_ad
+
+
+@router.post("/{ad_id}/click", response_model=PreRollAdOut)
+def track_ad_click(ad_id: int, db: Session = Depends(get_db)):
+    ad_item = (
+        db.query(PreRollAd)
+        .filter(PreRollAd.id == ad_id)
+        .first()
+    )
+
+    if ad_item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ad campaign not found"
+        )
+
+    if ad_item.clicks_count is None:
+        ad_item.clicks_count = 0
+
+    ad_item.clicks_count = ad_item.clicks_count + 1
+
+    try:
+        db.commit()
+        db.refresh(ad_item)
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update ad click count"
+        )
+
+    return ad_item

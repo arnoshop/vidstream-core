@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import PreRollAd
 from app.schemas import PreRollAdCreate, PreRollAdOut
+from app.security import verify_admin_key
 from app.storage import save_uploaded_video
 from app.utils import build_vast_xml
 
@@ -13,7 +14,12 @@ router = APIRouter(
 )
 
 
-@router.post("/", response_model=PreRollAdOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=PreRollAdOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_admin_key)]
+)
 def create_preroll_ad(payload: PreRollAdCreate, db: Session = Depends(get_db)):
     new_ad = PreRollAd(
         campaign_name=payload.campaign_name,
@@ -36,7 +42,12 @@ def create_preroll_ad(payload: PreRollAdCreate, db: Session = Depends(get_db)):
     return new_ad
 
 
-@router.post("/upload", response_model=PreRollAdOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload",
+    response_model=PreRollAdOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_admin_key)]
+)
 def upload_preroll_ad(
     campaign_name: str = Form(...),
     target_click_url: str = Form(...),
@@ -197,3 +208,33 @@ def track_ad_click(ad_id: int, db: Session = Depends(get_db)):
         )
 
     return ad_item
+
+
+@router.delete("/{ad_id}", dependencies=[Depends(verify_admin_key)])
+def delete_preroll_ad(ad_id: int, db: Session = Depends(get_db)):
+    ad_item = (
+        db.query(PreRollAd)
+        .filter(PreRollAd.id == ad_id)
+        .first()
+    )
+
+    if ad_item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ad campaign not found"
+        )
+
+    try:
+        db.delete(ad_item)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete preroll ad from database"
+        )
+
+    result = {}
+    result["status"] = "deleted"
+    result["ad_id"] = ad_id
+    return result

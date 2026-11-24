@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VidStream Core</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.fluidplayer.com/v3/current/fluidplayer.min.js"></script>
+</head>
+<body>
+    <header class="top-bar">
+        <div class="brand-name">VidStreamCore</div>
+        <div class="status-badge" id="apiStatus">در حال اتصال...</div>
+    </header>
+
+    <main class="main-container">
+        <section class="player-section">
+            <div class="player-wrapper" id="playerContainer">
+                <video id="mainVideoPlayer" controls playsinline>
+                    <source id="videoSource" src="" type="video/mp4">
+                </video>
+            </div>
+            <div class="video-meta">
+                <h1 id="videoTitle">یک ویدیو انتخاب کنید</h1>
+                <div class="meta-row">
+                    <span id="videoViews">بازدید: 0</span>
+                    <span id="videoDuration">مدت: 0 ثانیه</span>
+                </div>
+                <p id="videoDescription"></p>
+            </div>
+        </section>
+
+        <aside class="sidebar-section">
+            <h2 class="sidebar-title">لیست ویدیوها</h2>
+            <div id="videoList" class="video-list">
+                <p class="empty-msg">در حال دریافت ویدیوها...</p>
+            </div>
+        </aside>
+    </main>
+
+    <script src="/js/player.js"></script>
+</body>
+</html>

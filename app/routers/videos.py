@@ -1,3 +1,4 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -40,3 +41,22 @@ def create_video(payload: VideoCreate, db: Session = Depends(get_db)):
         )
 
     return new_video
+
+
+@router.get("/", response_model=List[VideoOut])
+def list_videos(skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
+    if skip < 0:
+        skip = 0
+
+    if limit < 1:
+        limit = 20
+
+    if limit > 100:
+        limit = 100
+
+    query = db.query(Video)
+    query = query.filter(Video.is_active == True)
+    query = query.order_by(Video.created_at.desc())
+    videos_list = query.offset(skip).limit(limit).all()
+
+    return videos_list

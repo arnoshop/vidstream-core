@@ -21,6 +21,7 @@ class AppConfig:
         self.app_name = get_env_value("APP_NAME", "VidStreamCore")
         self.app_env = get_env_value("APP_ENV", "development")
         self.secret_key = get_env_value("SECRET_KEY", "")
+        self.admin_api_key = get_env_value("ADMIN_API_KEY", "")
         self.database_url = get_env_value("DATABASE_URL", "sqlite:///./vidstream.db")
         self.vast_preroll_url = get_env_value("VAST_PREROLL_URL", "")
 

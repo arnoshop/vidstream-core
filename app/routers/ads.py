@@ -1,9 +1,10 @@
 import random
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import PreRollAd
 from app.schemas import PreRollAdCreate, PreRollAdOut
+from app.storage import save_uploaded_video
 from app.utils import build_vast_xml
 
 router = APIRouter(
@@ -30,6 +31,57 @@ def create_preroll_ad(payload: PreRollAdCreate, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save preroll ad in database"
+        )
+
+    return new_ad
+
+
+@router.post("/upload", response_model=PreRollAdOut, status_code=status.HTTP_201_CREATED)
+def upload_preroll_ad(
+    campaign_name: str = Form(...),
+    target_click_url: str = Form(...),
+    skip_after_seconds: int = Form(5),
+    ad_file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    cleaned_name = campaign_name.strip()
+    if len(cleaned_name) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="campaign_name must be at least 2 characters"
+        )
+
+    cleaned_click_url = target_click_url.strip()
+    if not cleaned_click_url.startswith("http://") and not cleaned_click_url.startswith("https://"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="target_click_url must start with http:// or https://"
+        )
+
+    if skip_after_seconds < 0 or skip_after_seconds > 30:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="skip_after_seconds must be between 0 and 30"
+        )
+
+    saved_ad_url = save_uploaded_video(ad_file, "ads")
+
+    new_ad = PreRollAd(
+        campaign_name=cleaned_name,
+        ad_video_url=saved_ad_url,
+        target_click_url=cleaned_click_url,
+        skip_after_seconds=skip_after_seconds
+    )
+
+    try:
+        db.add(new_ad)
+        db.commit()
+        db.refresh(new_ad)
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save uploaded preroll ad in database"
         )
 
     return new_ad
@@ -72,7 +124,7 @@ def serve_random_ad(db: Session = Depends(get_db)):
 
 
 @router.get("/vast.xml")
-def get_vast_xml(db: Session = Depends(get_db)):
+def get_vast_xml(request: Request, db: Session = Depends(get_db)):
     empty_vast = '<?xml version="1.0" encoding="UTF-8"?>\n<VAST version="3.0"></VAST>'
 
     active_ads = (
@@ -99,10 +151,15 @@ def get_vast_xml(db: Session = Depends(get_db)):
         db.rollback()
         return Response(content=empty_vast, media_type="application/xml")
 
+    final_media_url = selected_ad.ad_video_url
+    if final_media_url.startswith("/"):
+        base_host = str(request.base_url).rstrip("/")
+        final_media_url = base_host + final_media_url
+
     xml_content = build_vast_xml(
         ad_id=selected_ad.id,
         campaign_name=selected_ad.campaign_name,
-        video_url=selected_ad.ad_video_url,
+        video_url=final_media_url,
         click_url=selected_ad.target_click_url,
         skip_seconds=selected_ad.skip_after_seconds
     )

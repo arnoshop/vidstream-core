@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models import PreRollAd
 from app.schemas import PreRollAdCreate, PreRollAdOut
 from app.security import verify_admin_key
-from app.storage import save_uploaded_video
+from app.storage import delete_local_media_file, save_uploaded_video
 from app.utils import build_vast_xml
 
 router = APIRouter(
@@ -237,6 +237,8 @@ def delete_preroll_ad(ad_id: int, db: Session = Depends(get_db)):
             detail="Ad campaign not found"
         )
 
+    saved_ad_url = ad_item.ad_video_url
+
     try:
         db.delete(ad_item)
         db.commit()
@@ -247,7 +249,10 @@ def delete_preroll_ad(ad_id: int, db: Session = Depends(get_db)):
             detail="Failed to delete preroll ad from database"
         )
 
+    file_removed = delete_local_media_file(saved_ad_url)
+
     result = {}
     result["status"] = "deleted"
     result["ad_id"] = ad_id
+    result["file_removed"] = file_removed
     return result

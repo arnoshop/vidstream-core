@@ -1,21 +1,16 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.media_processor import (
-    convert_video_to_hls,
-    extract_video_duration,
-    generate_video_thumbnail
-)
 from app.models import Video
 from app.schemas import VideoCreate, VideoOut
 from app.security import verify_admin_key
 from app.storage import (
     delete_local_hls_directory,
     delete_local_media_file,
-    resolve_local_media_path,
     save_uploaded_video
 )
+from app.tasks import process_uploaded_video_task
 from app.utils import generate_slug
 
 router = APIRouter(
@@ -79,6 +74,7 @@ def create_video(payload: VideoCreate, db: Session = Depends(get_db)):
     dependencies=[Depends(verify_admin_key)]
 )
 def upload_video(
+    background_tasks: BackgroundTasks,
     title: str = Form(...),
     description: Optional[str] = Form(None),
     duration_seconds: int = Form(0),
@@ -97,22 +93,6 @@ def upload_video(
         safe_duration = 0
 
     saved_stream_url = save_uploaded_video(video_file, "videos")
-    local_video_path = resolve_local_media_path(saved_stream_url)
-
-    probed_duration = extract_video_duration(local_video_path)
-    if probed_duration > 0:
-        final_duration = probed_duration
-    else:
-        final_duration = safe_duration
-
-    generated_thumb_url = generate_video_thumbnail(local_video_path, final_duration)
-
-    hls_stream_url = convert_video_to_hls(local_video_path)
-    if hls_stream_url is not None:
-        final_stream_url = hls_stream_url
-        delete_local_media_file(saved_stream_url)
-    else:
-        final_stream_url = saved_stream_url
 
     slug_value = generate_slug(cleaned_title)
     existing = db.query(Video).filter(Video.slug == slug_value).first()
@@ -123,9 +103,10 @@ def upload_video(
         title=cleaned_title,
         slug=slug_value,
         description=description,
-        stream_url=final_stream_url,
-        thumbnail_url=generated_thumb_url,
-        duration_seconds=final_duration
+        stream_url=saved_stream_url,
+        thumbnail_url=None,
+        duration_seconds=safe_duration,
+        is_active=False
     )
 
     try:
@@ -134,15 +115,18 @@ def upload_video(
         db.refresh(new_video)
     except Exception:
         db.rollback()
-        if final_stream_url.startswith("/media/hls/"):
-            delete_local_hls_directory(final_stream_url)
-        else:
-            delete_local_media_file(final_stream_url)
-        delete_local_media_file(generated_thumb_url)
+        delete_local_media_file(saved_stream_url)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save uploaded video in database"
         )
+
+    background_tasks.add_task(
+        process_uploaded_video_task,
+        new_video.id,
+        saved_stream_url,
+        safe_duration
+    )
 
     return new_video
 

@@ -74,3 +74,36 @@ def save_uploaded_video(upload_file: UploadFile, subfolder_name: str):
 
     relative_url = "/media/" + clean_folder + "/" + random_name
     return relative_url
+
+
+def delete_local_media_file(media_url):
+    if media_url is None:
+        return False
+
+    cleaned_url = media_url.strip()
+    if not cleaned_url.startswith("/media/"):
+        return False
+
+    prefix_len = len("/media/")
+    relative_part = cleaned_url[prefix_len:]
+    relative_part = relative_part.lstrip("/\\")
+
+    if relative_part == "":
+        return False
+
+    media_root = os.path.abspath(get_media_root())
+    joined_path = os.path.join(media_root, relative_part)
+    target_path = os.path.abspath(joined_path)
+
+    safe_prefix = media_root + os.sep
+    if not target_path.startswith(safe_prefix):
+        return False
+
+    if not os.path.isfile(target_path):
+        return False
+
+    try:
+        os.remove(target_path)
+        return True
+    except Exception:
+        return False

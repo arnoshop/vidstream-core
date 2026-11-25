@@ -1,5 +1,6 @@
 import os
 import secrets
+import shutil
 import subprocess
 from app.storage import get_media_subfolder
 
@@ -120,3 +121,60 @@ def generate_video_thumbnail(video_file_path, duration_seconds=0):
 
     thumb_url = "/media/thumbnails/" + thumb_filename
     return thumb_url
+
+
+def convert_video_to_hls(video_file_path):
+    if video_file_path is None or not os.path.isfile(video_file_path):
+        return None
+
+    hls_root = get_media_subfolder("hls")
+    stream_id = secrets.token_hex(8)
+    output_dir = os.path.join(hls_root, stream_id)
+    os.makedirs(output_dir, exist_ok=True)
+
+    playlist_path = os.path.join(output_dir, "index.m3u8")
+    segment_pattern = os.path.join(output_dir, "seg_%03d.ts")
+
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        video_file_path,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-hls_time",
+        "6",
+        "-hls_playlist_type",
+        "vod",
+        "-hls_segment_filename",
+        segment_pattern,
+        playlist_path
+    ]
+
+    try:
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=300
+        )
+    except Exception:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        return None
+
+    if result.returncode != 0 or not os.path.isfile(playlist_path):
+        shutil.rmtree(output_dir, ignore_errors=True)
+        return None
+
+    hls_url = "/media/hls/" + stream_id + "/index.m3u8"
+    return hls_url

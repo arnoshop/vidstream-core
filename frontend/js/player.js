@@ -25,7 +25,29 @@ function getSourceMimeType(urlText) {
     return "video/mp4";
 }
 
-function setupVideoPlayer(streamUrl) {
+function formatDuration(totalSeconds) {
+    const num = parseInt(totalSeconds, 10);
+    if (isNaN(num) || num <= 0) {
+        return "00:00";
+    }
+
+    const mins = Math.floor(num / 60);
+    const secs = num % 60;
+
+    let minText = String(mins);
+    if (mins < 10) {
+        minText = "0" + minText;
+    }
+
+    let secText = String(secs);
+    if (secs < 10) {
+        secText = "0" + secText;
+    }
+
+    return minText + ":" + secText;
+}
+
+function setupVideoPlayer(streamUrl, thumbnailUrl) {
     if (activePlayerInstance !== null) {
         try {
             activePlayerInstance.destroy();
@@ -43,6 +65,12 @@ function setupVideoPlayer(streamUrl) {
     videoEl.setAttribute("controls", "true");
     videoEl.setAttribute("playsinline", "true");
 
+    let posterValue = false;
+    if (thumbnailUrl && thumbnailUrl.trim() !== "") {
+        posterValue = thumbnailUrl.trim();
+        videoEl.setAttribute("poster", posterValue);
+    }
+
     const sourceEl = document.createElement("source");
     sourceEl.src = streamUrl;
     sourceEl.type = getSourceMimeType(streamUrl);
@@ -55,7 +83,8 @@ function setupVideoPlayer(streamUrl) {
             layoutControls: {
                 fillToContainer: true,
                 autoPlay: false,
-                mute: false
+                mute: false,
+                posterImage: posterValue
             },
             vastOptions: {
                 adList: [
@@ -80,7 +109,7 @@ async function openVideoBySlug(slugValue) {
 
         document.getElementById("videoTitle").textContent = videoData.title;
         document.getElementById("videoViews").textContent = "بازدید: " + videoData.views_count;
-        document.getElementById("videoDuration").textContent = "مدت: " + videoData.duration_seconds + " ثانیه";
+        document.getElementById("videoDuration").textContent = "مدت: " + formatDuration(videoData.duration_seconds);
 
         if (videoData.description) {
             document.getElementById("videoDescription").textContent = videoData.description;
@@ -88,7 +117,7 @@ async function openVideoBySlug(slugValue) {
             document.getElementById("videoDescription").textContent = "توضیحاتی ثبت نشده است.";
         }
 
-        setupVideoPlayer(videoData.stream_url);
+        setupVideoPlayer(videoData.stream_url, videoData.thumbnail_url);
     } catch (err) {
         console.log("failed to load video:", err);
     }
@@ -118,16 +147,38 @@ async function loadVideoList() {
             const card = document.createElement("div");
             card.className = "video-card";
 
+            const thumbBox = document.createElement("div");
+            thumbBox.className = "video-thumb-box";
+
+            if (item.thumbnail_url && item.thumbnail_url.trim() !== "") {
+                const imgEl = document.createElement("img");
+                imgEl.className = "video-thumb-img";
+                imgEl.src = item.thumbnail_url;
+                imgEl.alt = item.title;
+                thumbBox.appendChild(imgEl);
+            } else {
+                const placeholder = document.createElement("span");
+                placeholder.className = "video-thumb-placeholder";
+                placeholder.textContent = "بدون کاور";
+                thumbBox.appendChild(placeholder);
+            }
+
+            const bodyDiv = document.createElement("div");
+            bodyDiv.className = "video-card-body";
+
             const titleDiv = document.createElement("div");
             titleDiv.className = "video-card-title";
             titleDiv.textContent = item.title;
 
             const subDiv = document.createElement("div");
             subDiv.className = "video-card-sub";
-            subDiv.textContent = "بازدید: " + item.views_count + " | مدت: " + item.duration_seconds + " ثانیه";
+            subDiv.textContent = "بازدید: " + item.views_count + " | مدت: " + formatDuration(item.duration_seconds);
 
-            card.appendChild(titleDiv);
-            card.appendChild(subDiv);
+            bodyDiv.appendChild(titleDiv);
+            bodyDiv.appendChild(subDiv);
+
+            card.appendChild(thumbBox);
+            card.appendChild(bodyDiv);
 
             card.addEventListener("click", function () {
                 openVideoBySlug(item.slug);

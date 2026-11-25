@@ -29,6 +29,51 @@ function showBanner(messageText, isError) {
     }
 }
 
+function showLockedLists(messageText) {
+    const videoListBox = document.getElementById("adminVideoList");
+    const adListBox = document.getElementById("adminAdList");
+    videoListBox.innerHTML = "<p class='muted-text'>" + messageText + "</p>";
+    adListBox.innerHTML = "<p class='muted-text'>" + messageText + "</p>";
+}
+
+async function verifyAndConnectAdmin() {
+    const keyVal = document.getElementById("adminKeyInput").value.trim();
+    if (keyVal === "") {
+        sessionStorage.removeItem(STORAGE_KEY_NAME);
+        showBanner("کلید ادمین نمی‌تواند خالی باشد.", true);
+        showLockedLists("ابتدا کلید ادمین را وارد کنید.");
+        return;
+    }
+
+    try {
+        const checkRes = await fetch("/videos/admin/all", {
+            method: "GET",
+            headers: {
+                "X-Admin-Key": keyVal
+            }
+        });
+
+        if (checkRes.status === 401 || checkRes.status === 403) {
+            sessionStorage.removeItem(STORAGE_KEY_NAME);
+            showBanner("کلید ادمین اشتباه است. دسترسی رد شد.", true);
+            showLockedLists("کلید ادمین نامعتبر است.");
+            return;
+        }
+
+        if (!checkRes.ok) {
+            showBanner("خطا در بررسی کلید ادمین از سرور.", true);
+            return;
+        }
+
+        sessionStorage.setItem(STORAGE_KEY_NAME, keyVal);
+        showBanner("اتصال ادمین تایید شد.", false);
+        loadAdminVideos();
+        loadAdminAds();
+    } catch (err) {
+        showBanner("عدم ارتباط با سرور هنگام بررسی کلید ادمین.", true);
+    }
+}
+
 async function deleteVideoItem(videoId) {
     const adminKey = getSavedAdminKey();
     if (adminKey === "") {
@@ -87,9 +132,26 @@ async function deleteAdItem(adId) {
 
 async function loadAdminVideos() {
     const listBox = document.getElementById("adminVideoList");
+    const adminKey = getSavedAdminKey();
+
+    if (adminKey === "") {
+        listBox.innerHTML = "<p class='muted-text'>برای دیدن لیست ویدیوها کلید ادمین را وارد کنید.</p>";
+        return;
+    }
 
     try {
-        const res = await fetch("/videos/");
+        const res = await fetch("/videos/admin/all", {
+            method: "GET",
+            headers: {
+                "X-Admin-Key": adminKey
+            }
+        });
+
+        if (res.status === 401 || res.status === 403) {
+            listBox.innerHTML = "<p class='muted-text'>کلید ادمین نامعتبر است.</p>";
+            return;
+        }
+
         if (!res.ok) {
             listBox.innerHTML = "<p class='muted-text'>خطا در دریافت لیست ویدیوها</p>";
             return;
@@ -308,25 +370,15 @@ document.addEventListener("DOMContentLoaded", function () {
     const savedKey = sessionStorage.getItem(STORAGE_KEY_NAME);
     if (savedKey !== null && savedKey.trim() !== "") {
         document.getElementById("adminKeyInput").value = savedKey;
-    }
-
-    document.getElementById("saveKeyBtn").addEventListener("click", function () {
-        const keyVal = document.getElementById("adminKeyInput").value.trim();
-        if (keyVal === "") {
-            showBanner("کلید ادمین نمی‌تواند خالی باشد.", true);
-            return;
-        }
-        sessionStorage.setItem(STORAGE_KEY_NAME, keyVal);
-        showBanner("کلید ادمین ذخیره شد. در حال دریافت لیست‌ها...", false);
         loadAdminVideos();
         loadAdminAds();
-    });
+    } else {
+        showLockedLists("ابتدا کلید ادمین را وارد کنید.");
+    }
 
+    document.getElementById("saveKeyBtn").addEventListener("click", verifyAndConnectAdmin);
     document.getElementById("videoUploadForm").addEventListener("submit", handleVideoUpload);
     document.getElementById("adUploadForm").addEventListener("submit", handleAdUpload);
     document.getElementById("refreshVideosBtn").addEventListener("click", loadAdminVideos);
     document.getElementById("refreshAdsBtn").addEventListener("click", loadAdminAds);
-
-    loadAdminVideos();
-    loadAdminAds();
 });

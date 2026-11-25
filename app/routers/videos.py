@@ -14,6 +14,18 @@ router = APIRouter(
 )
 
 
+@router.get(
+    "/admin/all",
+    response_model=List[VideoOut],
+    dependencies=[Depends(verify_admin_key)]
+)
+def list_all_videos_for_admin(db: Session = Depends(get_db)):
+    query = db.query(Video)
+    query = query.order_by(Video.created_at.desc())
+    all_videos = query.all()
+    return all_videos
+
+
 @router.post(
     "/",
     response_model=VideoOut,

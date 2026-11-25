@@ -5,7 +5,7 @@ from app.database import get_db
 from app.models import Video
 from app.schemas import VideoCreate, VideoOut
 from app.security import verify_admin_key
-from app.storage import save_uploaded_video
+from app.storage import delete_local_media_file, save_uploaded_video
 from app.utils import generate_slug
 
 router = APIRouter(
@@ -172,6 +172,9 @@ def delete_video(video_id: int, db: Session = Depends(get_db)):
             detail="Video not found"
         )
 
+    saved_file_url = video_item.stream_url
+    saved_thumb_url = video_item.thumbnail_url
+
     try:
         db.delete(video_item)
         db.commit()
@@ -182,7 +185,11 @@ def delete_video(video_id: int, db: Session = Depends(get_db)):
             detail="Failed to delete video from database"
         )
 
+    file_removed = delete_local_media_file(saved_file_url)
+    delete_local_media_file(saved_thumb_url)
+
     result = {}
     result["status"] = "deleted"
     result["video_id"] = video_id
+    result["file_removed"] = file_removed
     return result

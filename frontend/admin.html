@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل مدیریت | VidStream Core</title>
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+    <header class="admin-header">
+        <div class="header-left">
+            <span class="brand">VidStreamCore Admin</span>
+            <a class="nav-link" href="/">بازگشت به سایت</a>
+        </div>
+        <div class="auth-box">
+            <input type="password" id="adminKeyInput" placeholder="کلید ادمین (X-Admin-Key)">
+            <button type="button" id="saveKeyBtn">اتصال</button>
+        </div>
+    </header>
+
+    <main class="admin-container">
+        <div id="statusBanner" class="status-banner hidden"></div>
+
+        <section class="forms-grid">
+            <div class="panel-card">
+                <h2>آپلود ویدیو جدید</h2>
+                <form id="videoUploadForm">
+                    <label for="vidTitle">عنوان ویدیو</label>
+                    <input type="text" id="vidTitle" required>
+
+                    <label for="vidDesc">توضیحات</label>
+                    <textarea id="vidDesc" rows="3"></textarea>
+
+                    <label for="vidDuration">مدت زمان (ثانیه)</label>
+                    <input type="number" id="vidDuration" value="0" min="0">
+
+                    <label for="vidFile">فایل ویدیو (mp4, webm, mov, mkv)</label>
+                    <input type="file" id="vidFile" accept=".mp4,.webm,.mov,.mkv" required>
+
+                    <button type="submit" class="primary-btn">آپلود ویدیو</button>
+                </form>
+            </div>
+
+            <div class="panel-card">
+                <h2>آپلود تبلیغ Pre-roll</h2>
+                <form id="adUploadForm">
+                    <label for="adName">نام کمپین تبلیغاتی</label>
+                    <input type="text" id="adName" required>
+
+                    <label for="adClickUrl">لینک مقصد کلیک (https://...)</label>
+                    <input type="url" id="adClickUrl" placeholder="https://example.com" required>
+
+                    <label for="adSkipSec">زمان مجاز برای رد کردن (ثانیه)</label>
+                    <input type="number" id="adSkipSec" value="5" min="0" max="30">
+
+                    <label for="adFile">فایل ویدیوی تبلیغ</label>
+                    <input type="file" id="adFile" accept=".mp4,.webm,.mov,.mkv" required>
+
+                    <button type="submit" class="primary-btn">ثبت تبلیغ</button>
+                </form>
+            </div>
+        </section>
+
+        <section class="lists-grid">
+            <div class="panel-card">
+                <div class="section-head">
+                    <h2>ویدیوهای ثبت‌شده</h2>
+                    <button type="button" id="refreshVideosBtn" class="small-btn">بروزرسانی</button>
+                </div>
+                <div id="adminVideoList" class="items-list">
+                    <p class="muted-text">در حال بارگذاری...</p>
+                </div>
+            </div>
+
+            <div class="panel-card">
+                <div class="section-head">
+                    <h2>کمپین‌های تبلیغاتی</h2>
+                    <button type="button" id="refreshAdsBtn" class="small-btn">بروزرسانی</button>
+                </div>
+                <div id="adminAdList" class="items-list">
+                    <p class="muted-text">ابتدا کلید ادمین را وارد کنید.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="/js/admin.js"></script>
+</body>
+</html>

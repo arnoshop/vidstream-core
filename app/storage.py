@@ -16,6 +16,23 @@ def get_media_root():
     return media_dir
 
 
+def get_media_subfolder(subfolder_name):
+    clean_folder = subfolder_name.strip().lower()
+    if clean_folder == "" or not clean_folder.isalnum():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid storage subfolder name"
+        )
+
+    media_root = get_media_root()
+    target_folder = os.path.join(media_root, clean_folder)
+
+    if not os.path.exists(target_folder):
+        os.makedirs(target_folder, exist_ok=True)
+
+    return target_folder
+
+
 def extract_safe_extension(original_filename):
     if original_filename is None or original_filename.strip() == "":
         raise HTTPException(
@@ -37,18 +54,8 @@ def extract_safe_extension(original_filename):
 
 def save_uploaded_video(upload_file: UploadFile, subfolder_name: str):
     clean_folder = subfolder_name.strip().lower()
-    if clean_folder == "" or not clean_folder.isalnum():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid storage subfolder name"
-        )
-
+    target_folder = get_media_subfolder(clean_folder)
     file_ext = extract_safe_extension(upload_file.filename)
-    media_root = get_media_root()
-    target_folder = os.path.join(media_root, clean_folder)
-
-    if not os.path.exists(target_folder):
-        os.makedirs(target_folder, exist_ok=True)
 
     random_name = secrets.token_hex(8) + file_ext
     full_file_path = os.path.join(target_folder, random_name)
@@ -76,20 +83,20 @@ def save_uploaded_video(upload_file: UploadFile, subfolder_name: str):
     return relative_url
 
 
-def delete_local_media_file(media_url):
+def resolve_local_media_path(media_url):
     if media_url is None:
-        return False
+        return None
 
     cleaned_url = media_url.strip()
     if not cleaned_url.startswith("/media/"):
-        return False
+        return None
 
     prefix_len = len("/media/")
     relative_part = cleaned_url[prefix_len:]
     relative_part = relative_part.lstrip("/\\")
 
     if relative_part == "":
-        return False
+        return None
 
     media_root = os.path.abspath(get_media_root())
     joined_path = os.path.join(media_root, relative_part)
@@ -97,6 +104,14 @@ def delete_local_media_file(media_url):
 
     safe_prefix = media_root + os.sep
     if not target_path.startswith(safe_prefix):
+        return None
+
+    return target_path
+
+
+def delete_local_media_file(media_url):
+    target_path = resolve_local_media_path(media_url)
+    if target_path is None:
         return False
 
     if not os.path.isfile(target_path):

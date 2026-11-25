@@ -178,9 +178,14 @@ async function loadAdminVideos() {
             titleEl.className = "row-title";
             titleEl.textContent = "#" + item.id + " - " + item.title;
 
+            let statusText = "در حال پردازش HLS...";
+            if (item.is_active === true) {
+                statusText = "آماده پخش";
+            }
+
             const metaEl = document.createElement("div");
             metaEl.className = "row-meta";
-            metaEl.textContent = "بازدید: " + item.views_count + " | مدت: " + item.duration_seconds + " ثانیه";
+            metaEl.textContent = "وضعیت: " + statusText + " | بازدید: " + item.views_count + " | مدت: " + item.duration_seconds + " ثانیه";
 
             info.appendChild(titleEl);
             info.appendChild(metaEl);
@@ -295,7 +300,7 @@ async function handleVideoUpload(event) {
     formData.append("duration_seconds", document.getElementById("vidDuration").value);
     formData.append("video_file", fileInput.files[0]);
 
-    showBanner("در حال آپلود ویدیو...", false);
+    showBanner("در حال آپلود فایل ویدیو...", false);
 
     try {
         const res = await fetch("/videos/upload", {
@@ -313,7 +318,7 @@ async function handleVideoUpload(event) {
         }
 
         document.getElementById("videoUploadForm").reset();
-        showBanner("ویدیو با موفقیت آپلود و ثبت شد.", false);
+        showBanner("فایل آپلود شد و در پس‌زمینه در حال تبدیل به HLS است. چند ثانیه بعد بروزرسانی را بزنید.", false);
         loadAdminVideos();
     } catch (err) {
         showBanner("خطا در اتصال به سرور هنگام آپلود ویدیو.", true);

@@ -2,10 +2,11 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.media_processor import extract_video_duration, generate_video_thumbnail
 from app.models import Video
 from app.schemas import VideoCreate, VideoOut
 from app.security import verify_admin_key
-from app.storage import delete_local_media_file, save_uploaded_video
+from app.storage import delete_local_media_file, resolve_local_media_path, save_uploaded_video
 from app.utils import generate_slug
 
 router = APIRouter(
@@ -87,6 +88,15 @@ def upload_video(
         safe_duration = 0
 
     saved_stream_url = save_uploaded_video(video_file, "videos")
+    local_video_path = resolve_local_media_path(saved_stream_url)
+
+    probed_duration = extract_video_duration(local_video_path)
+    if probed_duration > 0:
+        final_duration = probed_duration
+    else:
+        final_duration = safe_duration
+
+    generated_thumb_url = generate_video_thumbnail(local_video_path, final_duration)
 
     slug_value = generate_slug(cleaned_title)
     existing = db.query(Video).filter(Video.slug == slug_value).first()
@@ -98,8 +108,8 @@ def upload_video(
         slug=slug_value,
         description=description,
         stream_url=saved_stream_url,
-        thumbnail_url=None,
-        duration_seconds=safe_duration
+        thumbnail_url=generated_thumb_url,
+        duration_seconds=final_duration
     )
 
     try:
@@ -108,6 +118,8 @@ def upload_video(
         db.refresh(new_video)
     except Exception:
         db.rollback()
+        delete_local_media_file(saved_stream_url)
+        delete_local_media_file(generated_thumb_url)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save uploaded video in database"

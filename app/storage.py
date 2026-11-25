@@ -1,5 +1,6 @@
 import os
 import secrets
+import shutil
 from fastapi import HTTPException, UploadFile, status
 
 ALLOWED_VIDEO_EXTENSIONS = [".mp4", ".webm", ".mov", ".mkv"]
@@ -119,6 +120,35 @@ def delete_local_media_file(media_url):
 
     try:
         os.remove(target_path)
+        return True
+    except Exception:
+        return False
+
+
+def delete_local_hls_directory(media_url):
+    if media_url is None:
+        return False
+
+    cleaned_url = media_url.strip()
+    if not cleaned_url.startswith("/media/hls/"):
+        return False
+
+    target_file = resolve_local_media_path(cleaned_url)
+    if target_file is None:
+        return False
+
+    hls_root = os.path.abspath(get_media_subfolder("hls"))
+    hls_folder = os.path.abspath(os.path.dirname(target_file))
+
+    safe_prefix = hls_root + os.sep
+    if not hls_folder.startswith(safe_prefix):
+        return False
+
+    if not os.path.isdir(hls_folder):
+        return False
+
+    try:
+        shutil.rmtree(hls_folder)
         return True
     except Exception:
         return False

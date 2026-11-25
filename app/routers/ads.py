@@ -1,4 +1,5 @@
 import random
+from typing import List
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -12,6 +13,18 @@ router = APIRouter(
     prefix="/ads",
     tags=["Ads"]
 )
+
+
+@router.get(
+    "/",
+    response_model=List[PreRollAdOut],
+    dependencies=[Depends(verify_admin_key)]
+)
+def list_preroll_ads(db: Session = Depends(get_db)):
+    query = db.query(PreRollAd)
+    query = query.order_by(PreRollAd.created_at.desc())
+    ads_list = query.all()
+    return ads_list
 
 
 @router.post(
